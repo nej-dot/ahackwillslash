@@ -106,7 +106,7 @@ interface ActionDescriptor {
 const STORAGE_KEY = "ahackwillslash.weapon-memory.v1";
 const MAX_LOG_LINES = 3;
 const PLAYER_MAX_HP = 12;
-const ENEMY_TURN_DELAY_MS = 1200;
+const ENEMY_TURN_DELAY_MS = 5000;
 
 const swordDefinition: WeaponDefinition = {
   id: "sword",
@@ -893,6 +893,18 @@ export function createApp(): HTMLElement {
     render();
   }
 
+  function resolvePendingEnemyTurn(): void {
+    if (!turnLocked) {
+      return;
+    }
+
+    window.clearTimeout(enemyTurnTimeout);
+    enemyTurnTimeout = 0;
+    turnLocked = false;
+    handleEnemyTurn();
+    settleTurnAfterEnemyAction();
+  }
+
   function finishTurn(): void {
     window.clearTimeout(enemyTurnTimeout);
 
@@ -905,9 +917,8 @@ export function createApp(): HTMLElement {
     render();
 
     enemyTurnTimeout = window.setTimeout(() => {
-      turnLocked = false;
-      handleEnemyTurn();
-      settleTurnAfterEnemyAction();
+      enemyTurnTimeout = 0;
+      resolvePendingEnemyTurn();
     }, ENEMY_TURN_DELAY_MS);
   }
 
@@ -1062,24 +1073,28 @@ export function createApp(): HTMLElement {
   }
 
   shell.addEventListener("click", (event) => {
+    const actionButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "[data-action]",
+    );
+
     if (runState.phase !== "combat") {
       continueFlow();
       return;
     }
 
     if (turnLocked) {
+      if (!actionButton) {
+        resolvePendingEnemyTurn();
+      }
+
       return;
     }
 
-    const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
-      "[data-action]",
-    );
-
-    if (!target) {
+    if (!actionButton) {
       return;
     }
 
-    const actionId = target.dataset.action;
+    const actionId = actionButton.dataset.action;
 
     if (!actionId) {
       return;
