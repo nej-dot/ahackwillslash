@@ -14,3 +14,17 @@ bun run dev
 ```bash
 bun run build
 ```
+
+## GitHub Pages
+
+This repo includes a GitHub Actions workflow that deploys the built site to GitHub Pages on every push to `main`.
+
+To enable it in GitHub:
+
+1. Open `Settings` -> `Pages`.
+2. Set `Source` to `GitHub Actions`.
+3. Push `main` and wait for the `Deploy GitHub Pages` workflow to finish.
+
+For this repository, the published site URL will be:
+
+`https://nej-dot.github.io/ahackwillslash/`
