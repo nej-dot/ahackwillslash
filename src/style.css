@@ -1,86 +1,218 @@
 :root {
-  font-family: "Segoe UI", sans-serif;
-  color: #f6efe4;
-  background:
-    radial-gradient(circle at top, rgba(255, 184, 108, 0.18), transparent 35%),
-    linear-gradient(180deg, #1f2430 0%, #11151d 100%);
-  line-height: 1.5;
+  color-scheme: dark;
+  font-family: "Courier New", "Lucida Console", monospace;
+  color: #d8d8d8;
+  background: #020202;
+  line-height: 1.4;
   font-weight: 400;
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: auto;
+  --border: rgba(255, 255, 255, 0.14);
+  --text-dim: rgba(216, 216, 216, 0.68);
+  --text-faint: rgba(216, 216, 216, 0.4);
+  --player-fill: #d9d9d9;
+  --enemy-fill: #8e8e8e;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  min-width: 320px;
+  min-height: 100vh;
+  background: #020202;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#app,
+.game-shell {
   min-height: 100vh;
 }
 
-code {
-  font-family: "Cascadia Code", "Fira Code", monospace;
+.game-shell {
+  padding: 2rem 1rem;
 }
 
-#app {
-  min-height: 100vh;
-}
-
-.app-shell {
-  width: min(960px, calc(100vw - 3rem));
+.frame {
+  width: min(560px, 100%);
   margin: 0 auto;
-  padding: 4rem 0 5rem;
+  padding: 1rem 0 0;
 }
 
-.hero {
-  padding: 2rem 0 3rem;
+.scene {
+  min-height: 5rem;
+  margin-bottom: 1.5rem;
 }
 
-.eyebrow {
-  margin: 0 0 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 0.8rem;
-  color: #ffb86c;
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(3rem, 8vw, 5rem);
-  line-height: 0.95;
-}
-
-.lede {
-  max-width: 42rem;
-  margin: 1rem 0 0;
-  font-size: 1.15rem;
-  color: rgba(246, 239, 228, 0.82);
-}
-
-.card-grid {
+.scene--intro {
+  min-height: 7rem;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  place-items: center;
 }
 
-.card {
-  padding: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(18px);
+.scene--clickable {
+  cursor: pointer;
 }
 
-.card h2 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-}
-
-.card p {
+.scene__line,
+.log__line,
+.vital__row {
   margin: 0;
-  color: rgba(246, 239, 228, 0.78);
+}
+
+.scene__line {
+  color: #f1f1f1;
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  line-height: 1.3;
+}
+
+.scene__line--prompt::after {
+  content: " [click]";
+  color: var(--text-faint);
+  font-size: 0.88em;
+}
+
+.vitals {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1.15rem;
+}
+
+.vitals--hidden,
+.log--hidden,
+.actions--hidden {
+  display: none;
+}
+
+.vital__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.3rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.vital__row strong {
+  color: #efefef;
+  font-weight: 400;
+}
+
+.bar {
+  height: 0.75rem;
+  border: 1px solid var(--border);
+  background: #050505;
+}
+
+.bar__fill {
+  height: 100%;
+  transition: width 140ms ease-out;
+}
+
+.bar__fill--player {
+  background: var(--player-fill);
+}
+
+.bar__fill--enemy {
+  background: var(--enemy-fill);
+}
+
+.vital--dim {
+  opacity: 0.4;
+}
+
+.log {
+  margin-bottom: 1.15rem;
+}
+
+.log__entries {
+  display: grid;
+  gap: 0.4rem;
+  min-height: 8.5rem;
+}
+
+.log__line {
+  color: var(--text-dim);
+  font-size: 0.96rem;
+}
+
+.log__line--fresh {
+  color: #efefef;
+}
+
+.actions__grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.action {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #efefef;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 100ms ease,
+    background 100ms ease;
+}
+
+.action:hover,
+.action:focus-visible {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  outline: none;
+}
+
+.action--experiment {
+  border-style: dashed;
+}
+
+.is-shaking .frame {
+  animation: screen-shake 150ms linear;
+}
+
+@keyframes screen-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-2px);
+  }
+
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell {
+    padding: 1.25rem 0.9rem;
+  }
+
+  .scene {
+    min-height: 4.5rem;
+  }
+
+  .scene--intro {
+    min-height: 6.2rem;
+  }
 }
