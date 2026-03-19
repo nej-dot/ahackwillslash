@@ -106,7 +106,7 @@ interface ActionDescriptor {
 const STORAGE_KEY = "ahackwillslash.weapon-memory.v1";
 const MAX_LOG_LINES = 3;
 const PLAYER_MAX_HP = 12;
-const ENEMY_TURN_DELAY_MS = 650;
+const ENEMY_TURN_DELAY_MS = 1200;
 
 const swordDefinition: WeaponDefinition = {
   id: "sword",
