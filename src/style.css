@@ -1,0 +1,86 @@
+:root {
+  font-family: "Segoe UI", sans-serif;
+  color: #f6efe4;
+  background:
+    radial-gradient(circle at top, rgba(255, 184, 108, 0.18), transparent 35%),
+    linear-gradient(180deg, #1f2430 0%, #11151d 100%);
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+code {
+  font-family: "Cascadia Code", "Fira Code", monospace;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.app-shell {
+  width: min(960px, calc(100vw - 3rem));
+  margin: 0 auto;
+  padding: 4rem 0 5rem;
+}
+
+.hero {
+  padding: 2rem 0 3rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.8rem;
+  color: #ffb86c;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(3rem, 8vw, 5rem);
+  line-height: 0.95;
+}
+
+.lede {
+  max-width: 42rem;
+  margin: 1rem 0 0;
+  font-size: 1.15rem;
+  color: rgba(246, 239, 228, 0.82);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(18px);
+}
+
+.card h2 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.card p {
+  margin: 0;
+  color: rgba(246, 239, 228, 0.78);
+}
