@@ -29,7 +29,6 @@ interface ExperimentDefinition {
 interface WeaponDefinition {
   id: WeaponId;
   name: string;
-  wakeLines: string[];
   progression: MoveId[];
   moves: Record<MoveId, MoveDefinition>;
   experiments: Partial<Record<MoveId, ExperimentDefinition>>;
@@ -74,6 +73,13 @@ interface ExperimentalOption {
   nextMoveId: MoveId;
 }
 
+type LogTone = "neutral" | "enemy-hit" | "self-hit";
+
+interface LogEntry {
+  text: string;
+  tone: LogTone;
+}
+
 interface RunState {
   maxHp: number;
   hp: number;
@@ -82,7 +88,7 @@ interface RunState {
   phase: Phase;
   sceneLines: string[];
   sceneLineIndex: number;
-  log: string[];
+  log: LogEntry[];
   enemy: EnemyState | null;
   experimentalOption: ExperimentalOption | null;
   experimentationReadiness: number;
@@ -98,13 +104,13 @@ interface ActionDescriptor {
 }
 
 const STORAGE_KEY = "ahackwillslash.weapon-memory.v1";
-const MAX_LOG_LINES = 8;
+const MAX_LOG_LINES = 3;
 const PLAYER_MAX_HP = 12;
+const ENEMY_TURN_DELAY_MS = 650;
 
 const swordDefinition: WeaponDefinition = {
   id: "sword",
   name: "Sword",
-  wakeLines: ["You are holding a sword.", "It sits badly in your hand."],
   progression: ["flail", "poke", "slash"],
   moves: {
     flail: {
@@ -422,6 +428,56 @@ function getNextMoveId(state: PersistentState): MoveId | null {
   return null;
 }
 
+function getTotalWeaponUsage(progress: WeaponProgress): number {
+  return progress.unlockedMoveIds.reduce((sum, moveId) => {
+    return sum + (progress.moveUsage[moveId] ?? 0);
+  }, 0);
+}
+
+function getWeaponLevel(state: PersistentState): number {
+  const progress = getWeaponProgress(state);
+  const unlockBonus = Math.max(0, progress.unlockedMoveIds.length - 1) * 2;
+
+  return 1 + getTotalWeaponUsage(progress) + unlockBonus;
+}
+
+function getWeaponIntroLine(state: PersistentState): string {
+  const weapon = getCurrentWeapon(state);
+  const progress = getWeaponProgress(state);
+  const level = getWeaponLevel(state);
+  const stage = Math.min(level - 1, 15);
+
+  if (weapon.id === "sword") {
+    const words = [
+      "badly",
+      "wrongly",
+      "poorly",
+      "awkwardly",
+      "uneasily",
+      "loosely",
+      "uncertainly",
+      "carefully",
+      "steadily",
+      "cleanly",
+      "surely",
+      "neatly",
+      "firmly",
+      "easily",
+      "naturally",
+      "rightly",
+    ];
+
+    const moveBonus =
+      (progress.moveUsage.slash > 0 ? 1 : 0) + (progress.moveUsage.poke > 0 ? 1 : 0);
+    const adjustedStage = Math.min(stage + moveBonus, words.length - 1);
+
+    return `It sits ${words[adjustedStage]} in your hand.`;
+  }
+
+  const weaponName = weapon.name.toLowerCase();
+  return `It feels a little more familiar in your hand now: your ${weaponName}.`;
+}
+
 function createInitialRun(
   persistentState: PersistentState,
   awakeningNumber: number,
@@ -439,13 +495,17 @@ function createInitialRun(
       wokeAgain ? "You wake again." : "You wake up.",
       "Cold stone under you.",
       "Something is in front of you.",
-      ...weapon.wakeLines,
+      `You are holding a ${weapon.name.toLowerCase()}.`,
+      getWeaponIntroLine(persistentState),
     ],
     sceneLineIndex: 0,
     log: [
-      wokeAgain
-        ? "The dark gives you back the sword."
-        : "Your hand finds the sword before your mind does.",
+      {
+        text: wokeAgain
+          ? "The dark gives you back the sword."
+          : "Your hand finds the sword before your mind does.",
+        tone: "neutral",
+      },
     ],
     enemy: null,
     experimentalOption: null,
@@ -475,14 +535,16 @@ function getMoveSelfRisk(move: MoveDefinition, usageCount: number): number {
 
 function createAppMarkup(): string {
   return `
-    <section class="frame">
+    <section class="stage">
       <div class="scene" id="scene"></div>
-      <section class="vitals" id="vitals"></section>
-      <section class="log" aria-live="polite">
-        <div class="log__entries" id="log"></div>
-      </section>
-      <section class="actions">
-        <div class="actions__grid" id="actions"></div>
+      <section class="hud">
+        <section class="vitals" id="vitals"></section>
+        <section class="log" aria-live="polite">
+          <div class="log__entries" id="log"></div>
+        </section>
+        <section class="actions">
+          <div class="actions__grid" id="actions"></div>
+        </section>
       </section>
     </section>
   `;
@@ -509,8 +571,9 @@ export function createApp(): HTMLElement {
 
   const persistentState = loadPersistentState();
   let runState = createInitialRun(persistentState, 1, false);
-  let latestLogIndex = runState.log.length - 1;
   let shakeTimeout = 0;
+  let enemyTurnTimeout = 0;
+  let turnLocked = false;
 
   function save(): void {
     savePersistentState(persistentState);
@@ -526,9 +589,9 @@ export function createApp(): HTMLElement {
     }, 220);
   }
 
-  function appendLog(...entries: string[]): void {
+  function appendLog(...entries: LogEntry[]): void {
     for (const entry of entries) {
-      if (!entry) {
+      if (!entry.text) {
         continue;
       }
 
@@ -538,8 +601,10 @@ export function createApp(): HTMLElement {
     if (runState.log.length > MAX_LOG_LINES) {
       runState.log = runState.log.slice(-MAX_LOG_LINES);
     }
+  }
 
-    latestLogIndex = runState.log.length - 1;
+  function createLogEntry(text: string, tone: LogTone = "neutral"): LogEntry {
+    return { text, tone };
   }
 
   function rememberMoveUse(moveId: MoveId): number {
@@ -617,7 +682,7 @@ export function createApp(): HTMLElement {
     runState.sceneLineIndex = 0;
     runState.turnsWithoutExperiment = 0;
     runState.experimentalOption = computeExperimentalOpportunity();
-    appendLog(runState.enemy.introLine);
+    appendLog(createLogEntry(runState.enemy.introLine));
     render();
   }
 
@@ -637,19 +702,29 @@ export function createApp(): HTMLElement {
     if (Math.random() <= accuracy) {
       const damage = randomInt(move.damage[0], move.damage[1]);
       runState.enemy.hp = Math.max(0, runState.enemy.hp - damage);
-      appendLog(`${pickRandom(move.hitTexts)} ${damage} damage.`);
+      appendLog(
+        createLogEntry(
+          `${pickRandom(move.hitTexts)} ${damage} damage.`,
+          "enemy-hit",
+        ),
+      );
 
       if (damage >= 4) {
         triggerShake();
       }
     } else {
-      appendLog(pickRandom(move.missTexts));
+      appendLog(createLogEntry(pickRandom(move.missTexts)));
     }
 
     if (runState.enemy.hp > 0 && Math.random() <= selfRisk) {
       const selfDamage = randomInt(move.selfDamage[0], move.selfDamage[1]);
       runState.hp = Math.max(0, runState.hp - selfDamage);
-      appendLog(`${pickRandom(move.selfTexts)} ${selfDamage} damage to you.`);
+      appendLog(
+        createLogEntry(
+          `${pickRandom(move.selfTexts)} ${selfDamage} damage to you.`,
+          "self-hit",
+        ),
+      );
     }
 
     finishTurn();
@@ -690,8 +765,10 @@ export function createApp(): HTMLElement {
       enemy.hp = Math.max(0, enemy.hp - damage);
       unlockMove(option.nextMoveId);
       appendLog(
-        `${pickRandom(experiment.successTexts)} ${damage} damage.`,
-        `You have learned: ${weapon.moves[option.nextMoveId].name}.`,
+        createLogEntry(
+          `${pickRandom(experiment.successTexts)} ${damage} damage. You learn ${weapon.moves[option.nextMoveId].name}.`,
+          "enemy-hit",
+        ),
       );
       triggerShake();
       runState.recentCatastropheTurns = 0;
@@ -707,14 +784,17 @@ export function createApp(): HTMLElement {
       runState.hp = Math.max(0, runState.hp - selfDamage);
       runState.recentCatastropheTurns = 2;
       appendLog(
-        `${pickRandom(experiment.catastropheTexts)} ${selfDamage} damage to you.`,
+        createLogEntry(
+          `${pickRandom(experiment.catastropheTexts)} ${selfDamage} damage to you.`,
+          "self-hit",
+        ),
       );
       triggerShake();
       finishTurn();
       return;
     }
 
-    appendLog(pickRandom(experiment.failureTexts));
+    appendLog(createLogEntry(pickRandom(experiment.failureTexts)));
     runState.recentCatastropheTurns = 0;
     finishTurn();
   }
@@ -729,13 +809,18 @@ export function createApp(): HTMLElement {
     if (Math.random() <= enemy.accuracy) {
       const damage = randomInt(enemy.damage[0], enemy.damage[1]);
       runState.hp = Math.max(0, runState.hp - damage);
-      appendLog(`${pickRandom(enemy.template.hitTexts)} ${damage} damage.`);
+      appendLog(
+        createLogEntry(
+          `${pickRandom(enemy.template.hitTexts)} ${damage} damage.`,
+          "self-hit",
+        ),
+      );
 
       if (damage >= 3) {
         triggerShake();
       }
     } else {
-      appendLog(pickRandom(enemy.template.missTexts));
+      appendLog(createLogEntry(pickRandom(enemy.template.missTexts)));
     }
   }
 
@@ -754,10 +839,12 @@ export function createApp(): HTMLElement {
     runState.sceneLineIndex = 0;
     runState.experimentalOption = null;
     appendLog(
-      deathText,
-      recovery > 0
-        ? `You stand still until the shaking eases. Recover ${recovery} HP.`
-        : "You stand still and listen for the next thing.",
+      createLogEntry(deathText),
+      createLogEntry(
+        recovery > 0
+          ? `You stand still until the shaking eases. Recover ${recovery} HP.`
+          : "You stand still and listen for the next thing.",
+      ),
     );
   }
 
@@ -768,54 +855,60 @@ export function createApp(): HTMLElement {
     runState.pendingRecovery = 0;
     runState.sceneLines = ["You die."];
     runState.sceneLineIndex = 0;
-    appendLog("You die.");
+    appendLog(createLogEntry("You die."));
   }
 
-  function finishTurn(): void {
+  function resolveCombatState(): boolean {
     if (runState.hp <= 0) {
       resolveDeath();
       render();
-      return;
+      return true;
     }
 
     if (runState.enemy && runState.enemy.hp <= 0) {
       resolveVictory();
       render();
-      return;
+      return true;
     }
 
-    handleEnemyTurn();
+    return false;
+  }
 
-    if (runState.hp <= 0) {
-      resolveDeath();
-      render();
+  function settleTurnAfterEnemyAction(): void {
+    if (resolveCombatState()) {
       return;
     }
-
-    if (runState.enemy && runState.enemy.hp <= 0) {
-      resolveVictory();
-      render();
-      return;
-    }
-
     runState.recentCatastropheTurns = Math.max(
       0,
       runState.recentCatastropheTurns - 1,
     );
-    const previousOffer = runState.experimentalOption;
     runState.experimentalOption = computeExperimentalOpportunity();
 
     if (runState.experimentalOption) {
       runState.turnsWithoutExperiment = 0;
-
-      if (!previousOffer) {
-        appendLog("The sword gives you another angle to try.");
-      }
     } else {
       runState.turnsWithoutExperiment += 1;
     }
 
     render();
+  }
+
+  function finishTurn(): void {
+    window.clearTimeout(enemyTurnTimeout);
+
+    if (resolveCombatState()) {
+      turnLocked = false;
+      return;
+    }
+
+    turnLocked = true;
+    render();
+
+    enemyTurnTimeout = window.setTimeout(() => {
+      turnLocked = false;
+      handleEnemyTurn();
+      settleTurnAfterEnemyAction();
+    }, ENEMY_TURN_DELAY_MS);
   }
 
   function continueFlow(): void {
@@ -841,7 +934,6 @@ export function createApp(): HTMLElement {
         runState.awakeningNumber + 1,
         true,
       );
-      latestLogIndex = runState.log.length - 1;
       render();
     }
   }
@@ -927,14 +1019,15 @@ export function createApp(): HTMLElement {
 
   function renderLogMarkup(): string {
     return runState.log
-      .map((line, index) => {
-        const classes = ["log__line"];
+      .slice(-MAX_LOG_LINES)
+      .map((entry, index, entries) => {
+        const classes = ["log__line", `log__line--${entry.tone}`];
 
-        if (index === latestLogIndex) {
-          classes.push("log__line--fresh");
+        if (index < entries.length - 1) {
+          classes.push("log__line--previous");
         }
 
-        return `<p class="${classes.join(" ")}">${escapeHtml(line)}</p>`;
+        return `<p class="${classes.join(" ")}">${escapeHtml(entry.text)}</p>`;
       })
       .join("");
   }
@@ -943,7 +1036,7 @@ export function createApp(): HTMLElement {
     return getActionDescriptors()
       .map((action) => {
         return `
-          <button class="action action--${action.kind}" type="button" data-action="${escapeHtml(action.id)}">
+          <button class="action action--${action.kind}" type="button" data-action="${escapeHtml(action.id)}"${turnLocked ? " disabled" : ""}>
             <span>${escapeHtml(action.label)}</span>
           </button>
         `;
@@ -952,27 +1045,32 @@ export function createApp(): HTMLElement {
   }
 
   function render(): void {
+    shell.dataset.phase = runState.phase;
     sceneRoot.innerHTML = renderSceneMarkup();
     sceneRoot.classList.toggle("scene--intro", runState.phase === "intro");
-    sceneRoot.classList.toggle("scene--clickable", runState.phase === "intro");
+    sceneRoot.classList.toggle("scene--clickable", runState.phase !== "combat");
+    sceneRoot.classList.toggle("scene--hidden", runState.phase === "combat");
     vitalsRoot.innerHTML = renderVitalsMarkup();
-    vitalsRoot.classList.toggle("vitals--hidden", runState.phase === "intro");
+    vitalsRoot.classList.toggle("vitals--hidden", runState.phase !== "combat");
     logRoot.innerHTML = renderLogMarkup();
-    logRoot.parentElement?.classList.toggle("log--hidden", runState.phase === "intro");
+    logRoot.parentElement?.classList.toggle("log--hidden", runState.phase !== "combat");
     actionsRoot.innerHTML = renderActionsMarkup();
     actionsRoot.parentElement?.classList.toggle(
       "actions--hidden",
-      runState.phase === "intro",
+      runState.phase !== "combat",
     );
   }
 
-  sceneRoot.addEventListener("click", () => {
-    if (runState.phase === "intro") {
-      continueFlow();
-    }
-  });
-
   shell.addEventListener("click", (event) => {
+    if (runState.phase !== "combat") {
+      continueFlow();
+      return;
+    }
+
+    if (turnLocked) {
+      return;
+    }
+
     const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
       "[data-action]",
     );
