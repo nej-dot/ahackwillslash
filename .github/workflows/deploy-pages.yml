@@ -31,9 +31,11 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build site
+        env:
+          BASE_PATH: ahackwillslash
         run: bun run build
 
       - name: Upload artifact

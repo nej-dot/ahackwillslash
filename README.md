@@ -18,6 +18,7 @@ bun run build
 ## GitHub Pages
 
 This repo includes a GitHub Actions workflow that deploys the built site to GitHub Pages on every push to `main`.
+The workflow uses `bun install --frozen-lockfile` and builds with `BASE_PATH=ahackwillslash` so asset URLs resolve correctly on the project site.
 
 To enable it in GitHub:
 
