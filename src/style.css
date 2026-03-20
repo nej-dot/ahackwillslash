@@ -80,6 +80,13 @@ select {
   display: none;
 }
 
+.scene--combat {
+  place-items: start;
+  min-height: auto;
+  margin-bottom: 1.15rem;
+  cursor: default;
+}
+
 .scene__line,
 .log__line,
 .vital__row {
@@ -93,12 +100,23 @@ select {
   text-align: center;
 }
 
+.scene--combat .scene__line {
+  color: #d8d8d8;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.35;
+  text-align: left;
+}
+
 .hud {
   display: grid;
   grid-template-rows: auto minmax(var(--log-height), auto) auto;
   align-content: start;
   gap: 0.9rem;
   padding: 0;
+}
+
+.game-shell[data-phase="combat"] .stage {
+  grid-template-rows: auto auto;
 }
 
 .vitals {
